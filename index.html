@@ -31,8 +31,19 @@
             box-sizing: border-box;
             z-index: 10;
         }
-        #shop-button, #score-display {
+        #top-right-controls {
+            align-self: flex-end; 
+            margin-bottom: auto;
             pointer-events: auto;
+            text-align: right;
+        }
+        #bottom-left-controls {
+            align-self: flex-start; 
+            margin-top: auto;
+            pointer-events: auto;
+        }
+
+        #shop-button, #score-display, #speed-boost-button {
             background-color: rgba(0, 0, 0, 0.7);
             color: white;
             border: none;
@@ -41,10 +52,12 @@
             cursor: pointer;
             border-radius: 5px;
             transition: background-color 0.3s;
+            margin-bottom: 10px; /* Butonlar arası boşluk */
         }
-        #shop-button:hover {
+        #shop-button:hover, #speed-boost-button:hover {
             background-color: rgba(0, 0, 0, 0.9);
         }
+
         #shop-display {
             position: absolute;
             top: 50%;
@@ -63,10 +76,41 @@
             max-height: 90%;
             overflow-y: auto;
             z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* Dükkan içindeki elemanlar arası boşluk */
         }
         #shop-display h2 {
             margin-top: 0;
             color: #FFD700;
+        }
+        #shop-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .shop-tab-button {
+            background-color: #555;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 5px;
+            transition: background-color 0.3s;
+        }
+        .shop-tab-button.active {
+            background-color: #777;
+        }
+        .shop-tab-button:hover {
+            background-color: #666;
+        }
+        .shop-section {
+            display: none; /* Varsayılan olarak gizli */
+        }
+        .shop-section.active {
+            display: block; /* Aktif olduğunda görünür */
         }
         .shop-item {
             background-color: rgba(50, 50, 50, 0.7);
@@ -108,33 +152,59 @@
 </head>
 <body>
     <div id="ui-container">
-        <div id="score-display" style="align-self: flex-end; margin-bottom: auto;">
-            Skor: 0<br>Coin: 0
+        <div id="top-right-controls">
+            <div id="score-display">
+                Skor: 0<br>Coin: 0
+            </div>
+            <button id="speed-boost-button" style="display:none;">Hızlı Koş (0)</button> </div>
+        
+        <div id="bottom-left-controls">
+            <button id="shop-button">Dükkan</button>
         </div>
-        <button id="shop-button" style="align-self: flex-start; margin-top: auto;">Dükkan</button>
     </div>
 
     <div id="shop-display">
         <h2>SubSkate Dükkanı</h2>
-        <h3>Kıyafetler</h3>
-        <div id="shop-items-container">
-            </div>
+        <div id="shop-tabs">
+            <button class="shop-tab-button active" data-tab="outfits">Kıyafetler</button>
+            <button class="shop-tab-button" data-tab="powers">Özel Güçler</button>
+        </div>
+
+        <div id="outfit-shop-section" class="shop-section active">
+            <h3>Kıyafetler</h3>
+            <div id="outfit-items-container">
+                </div>
+        </div>
+
+        <div id="power-shop-section" class="shop-section">
+            <h3>Özel Güçler</h3>
+            <div id="power-items-container">
+                </div>
+        </div>
+
         <p id="shop-message"></p>
         <button id="close-shop-button">Kapat</button>
     </div>
     
     <script type="module">
-        // Three.js'i ana modül olarak içe aktarıyoruz.
-        // FontLoader'ı şimdilik kullanmıyoruz, bu yüzden onu import etmiyoruz.
         import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
+        // FontLoader için daha spesifik bir yol veya alternatif CDN kullanmak iyi olabilir.
+        // Şimdilik unpkg.com adresini tekrar deniyoruz, ancak hata devam ederse farklı bir kaynaktan yüklemeyi düşüneceğiz.
+        import { FontLoader } from 'https://unpkg.com/three@0.165.0/examples/jsm/loaders/FontLoader.js'; 
+        import { TextGeometry } from 'https://unpkg.com/three@0.165.0/examples/jsm/geometries/TextGeometry.js';
+
 
         // --- UI Elemanlarına Erişim ---
         const scoreDisplay = document.getElementById('score-display');
         const shopButton = document.getElementById('shop-button');
         const shopDisplay = document.getElementById('shop-display');
         const closeShopButton = document.getElementById('close-shop-button');
-        const shopItemsContainer = document.getElementById('shop-items-container');
+        const outfitItemsContainer = document.getElementById('outfit-items-container');
+        const powerItemsContainer = document.getElementById('power-items-container');
         const shopMessage = document.getElementById('shop-message');
+        const shopTabButtons = document.querySelectorAll('.shop-tab-button');
+        const shopSections = document.querySelectorAll('.shop-section');
+        const speedBoostButton = document.getElementById('speed-boost-button');
 
         // --- Dükkan Verileri (Kıyafetler) ---
         const outfitItems = [
@@ -149,11 +219,34 @@
             { id: 'shoes_red', type: 'shoes', name: 'Kırmızı Ayakkabı', color: 0xDD2222, price: 75, owned: false, current: false },
         ];
 
-        let playerCoins = 0; 
+        // --- Dükkan Verileri (Özel Güçler) ---
+        const powerItems = [
+            { id: 'speed_boost', name: 'Hızlandırma', description: '5 saniye boyunca %50 hız artışı.', price: 50, owned: 0, type: 'consumable' }
+        ];
 
-        // --- Dükkanı Doldurma Fonksiyonu ---
-        function populateShop() {
-            shopItemsContainer.innerHTML = ''; 
+        let playerCoins = 0; 
+        let speedBoostCount = 0; // Hızlandırma gücü adedi
+        let isSpeedBoostActive = false;
+        let speedBoostTimer = 0;
+        const SPEED_BOOST_DURATION = 5; // saniye
+        const SPEED_BOOST_MULTIPLIER = 1.5; // Hız artış çarpanı
+
+        // --- Dükkan Tab Kontrolleri ---
+        shopTabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                shopTabButtons.forEach(btn => btn.classList.remove('active'));
+                shopSections.forEach(section => section.classList.remove('active'));
+
+                button.classList.add('active');
+                document.getElementById(`${button.dataset.tab}-shop-section`).classList.add('active');
+                shopMessage.textContent = ''; // Mesajı temizle
+                populateShop(); // İçeriği tekrar doldur (coin ve sahip olunan durum güncellenir)
+            });
+        });
+
+        // --- Dükkanı Doldurma Fonksiyonları ---
+        function populateOutfitShop() {
+            outfitItemsContainer.innerHTML = ''; 
             outfitItems.forEach(item => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'shop-item';
@@ -175,16 +268,46 @@
                     <span>${item.name} ${itemStatus} - ${item.price} Coin</span>
                     <button id="buy-${item.id}" ${buttonDisabled ? 'disabled' : ''}>${buttonText}</button>
                 `;
-                shopItemsContainer.appendChild(itemDiv);
+                outfitItemsContainer.appendChild(itemDiv);
 
                 const buyButton = itemDiv.querySelector(`#buy-${item.id}`);
-                buyButton.addEventListener('click', () => handleShopPurchase(item));
+                buyButton.addEventListener('click', () => handleOutfitPurchase(item));
             });
-            scoreDisplay.innerHTML = `Skor: ${Math.floor(score)}<br>Coin: ${playerCoins}`;
+            updateScoreAndCoinsDisplay();
+        }
+
+        function populatePowerShop() {
+            powerItemsContainer.innerHTML = '';
+            powerItems.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'shop-item';
+                let buttonText = 'Satın Al';
+                let buttonDisabled = false;
+                
+                itemDiv.innerHTML = `
+                    <span>${item.name} (${item.owned}) - ${item.price} Coin</span>
+                    <button id="buy-${item.id}" ${buttonDisabled ? 'disabled' : ''}>${buttonText}</button>
+                `;
+                powerItemsContainer.appendChild(itemDiv);
+
+                const buyButton = itemDiv.querySelector(`#buy-${item.id}`);
+                buyButton.addEventListener('click', () => handlePowerPurchase(item));
+            });
+            updateScoreAndCoinsDisplay();
+        }
+
+        function populateShop() {
+            // Aktif sekmeye göre doğru doldurma fonksiyonunu çağır
+            const activeTab = document.querySelector('.shop-tab-button.active').dataset.tab;
+            if (activeTab === 'outfits') {
+                populateOutfitShop();
+            } else if (activeTab === 'powers') {
+                populatePowerShop();
+            }
         }
 
         // --- Satın Alma ve Giydirme İşlevi ---
-        function handleShopPurchase(item) {
+        function handleOutfitPurchase(item) {
             shopMessage.textContent = ''; 
             if (item.current) { 
                 shopMessage.textContent = 'Bu zaten aktif kıyafetin!';
@@ -195,7 +318,7 @@
                 item.current = true;
                 shopMessage.textContent = `${item.name} aktif edildi!`;
                 updatePlayerOutfit(item.type, item.color);
-                populateShop();
+                populateOutfitShop();
                 return;
             }
             if (playerCoins >= item.price) {
@@ -205,7 +328,23 @@
                 item.current = true;
                 shopMessage.textContent = `${item.name} satın alındı ve aktif edildi!`;
                 updatePlayerOutfit(item.type, item.color);
-                populateShop(); 
+                populateOutfitShop(); 
+            } else {
+                shopMessage.textContent = 'Yeterli coinin yok!';
+            }
+        }
+
+        function handlePowerPurchase(item) {
+            shopMessage.textContent = '';
+            if (playerCoins >= item.price) {
+                playerCoins -= item.price;
+                item.owned++; // Adedini artır
+                if (item.id === 'speed_boost') {
+                    speedBoostCount = item.owned;
+                    updateSpeedBoostButton();
+                }
+                shopMessage.textContent = `${item.name} satın alındı! Elinizde ${item.owned} adet var.`;
+                populatePowerShop();
             } else {
                 shopMessage.textContent = 'Yeterli coinin yok!';
             }
@@ -221,16 +360,41 @@
                     playerPants.material.color.set(color);
                     break;
                 case 'shoes':
+                    // Ayakkabı rengini direkt set et
                     playerLeftFoot.material.color.set(color);
                     playerRightFoot.material.color.set(color);
                     break;
             }
         }
 
+        function updateScoreAndCoinsDisplay() {
+            scoreDisplay.innerHTML = `Skor: ${Math.floor(score)}<br>Coin: ${playerCoins}`;
+        }
+
+        function updateSpeedBoostButton() {
+            if (speedBoostCount > 0) {
+                speedBoostButton.style.display = 'block';
+                speedBoostButton.textContent = `Hızlı Koş (${speedBoostCount})`;
+            } else {
+                speedBoostButton.style.display = 'none';
+            }
+        }
+
+        speedBoostButton.addEventListener('click', () => {
+            if (speedBoostCount > 0 && !isSpeedBoostActive) {
+                speedBoostCount--;
+                updateSpeedBoostButton();
+                isSpeedBoostActive = true;
+                speedBoostTimer = SPEED_BOOST_DURATION;
+                playerSpeed = 0.1 * SPEED_BOOST_MULTIPLIER; 
+                console.log("Hızlandırma aktif!");
+            }
+        });
+
         // --- Shop Butonu Olay Dinleyicisi ---
         shopButton.addEventListener('click', () => {
             populateShop(); 
-            shopDisplay.style.display = 'block'; 
+            shopDisplay.style.display = 'flex'; // Flex olarak ayarla
             isGamePaused = true; 
         });
 
@@ -327,12 +491,12 @@
 
 
         // --- Oyun Değişkenleri ---
-        const playerSpeed = 0.1; 
+        let playerSpeed = 0.1; // Başlangıç hızı
         let currentLane = 0; 
         let isJumping = false;
         let jumpVelocity = 0;
-        const jumpForce = 0.48; 
-        const gravity = -0.028; 
+        const jumpForce = 0.6; // Zıplama kuvveti daha da artırıldı
+        const gravity = -0.04; // Yerçekimi daha da artırıldı
 
         let score = 0;
         let lastScoreUpdateTime = performance.now(); 
@@ -357,21 +521,22 @@
         const coinGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16); 
         const coinMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); 
 
-        // FontLoader ve ilgili metin oluşturma kısımları ŞİMDİLİK devre dışı bırakıldı.
-        // Eğer bu değişiklik oyunu çalıştırırsa, font özelliğini daha stabil bir şekilde eklemeyi düşünebiliriz.
-        // let loadedFont;
-        // const fontLoader = new FontLoader();
-        // fontLoader.load( 'https://unpkg.com/three@0.165.0/examples/jsm/loaders/fonts/helvetiker_regular.typeface.json', 
-        //     function ( font ) {
-        //         loadedFont = font;
-        //         console.log("Font yüklendi!");
-        //     },
-        //     undefined, 
-        //     function ( err ) {
-        //         console.error( 'Font yüklenirken hata oluştu:', err );
-        //     }
-        // );
-
+        // FontLoader ve TextGeometry'yi yükle
+        let loadedFont;
+        const fontLoader = new FontLoader();
+        fontLoader.load( 
+            'https://unpkg.com/three@0.165.0/examples/fonts/helvetiker_regular.typeface.json', // Daha kısa yol kullanmayı deniyoruz
+            function ( font ) {
+                loadedFont = font;
+                console.log("Font yüklendi!");
+            },
+            undefined, // onProgress callback
+            function ( err ) {
+                console.error( 'Font yüklenirken hata oluştu:', err );
+                // Hata durumunda, oyunun çalışmasını engellememesi için burayı boş bırakıyoruz.
+                // Fontsuz devam edecek.
+            }
+        );
 
         // --- Mahalle Objeleri Oluşturma Fonksiyonları ---
         function createBuilding(x, z, width, height, depth, color) {
@@ -402,7 +567,7 @@
 
             const facadeTypes = ['front', 'side']; 
             const selectedFacade = facadeTypes[Math.floor(Math.random() * facadeTypes.length)];
-            const sideMultiplier = Math.random() < 0.5 ? -1 : 1; // Binanın hangi tarafa bakacağı için
+            const sideMultiplier = x > 0 ? 1 : -1; // Binanın hangi tarafa bakacağı için
 
             const numWindowsX = Math.floor(width / (width * 0.3));
             const numWindowsY = Math.floor(height / (height * 0.2));
@@ -492,20 +657,26 @@
             sign.position.set(0, 2.5, -0.05);
             signGroup.add(sign);
             
-            // "STOP" yazısı şimdilik devre dışı. Eğer oyun çalışırsa tekrar eklenebilir.
-            // if (loadedFont) { 
-            //     const textGeometry = new THREE.TextGeometry( 'STOP', {
-            //         font: loadedFont,
-            //         size: 0.5,
-            //         height: 0.1,
-            //         curveSegments: 2,
-            //         bevelEnabled: false
-            //     });
-            //     const textMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 });
-            //     const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-            //     textMesh.position.set(-0.6, 2.2, 0); 
-            //     signGroup.add(textMesh);
-            // }
+            // "STOP" yazısı
+            if (loadedFont) { 
+                const textGeometry = new TextGeometry( 'STOP', { // TextGeometry'yi kullanıyoruz
+                    font: loadedFont,
+                    size: 0.5,
+                    height: 0.1,
+                    curveSegments: 2,
+                    bevelEnabled: false
+                });
+                const textMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 });
+                const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+                // Metnin merkezini bulup ayarlayarak daha iyi konumlandırma
+                textGeometry.computeBoundingBox();
+                const textWidth = textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x;
+                const textHeight = textGeometry.boundingBox.max.y - textGeometry.boundingBox.min.y;
+                textMesh.position.set(-textWidth / 2, 2.5 - textHeight / 2, 0.01); // Z biraz öne
+                signGroup.add(textMesh);
+            } else {
+                console.warn("Font henüz yüklenmedi, yol tabelasına yazı eklenemedi.");
+            }
 
             signGroup.position.set(x, 0, z);
             scene.add(signGroup);
@@ -523,20 +694,24 @@
                 obstacleMesh.position.set(lane * LANE_WIDTH, 0.5, zPosition);
                 obstacleMesh.isBreakable = true; 
                 
-                // "KUTU" yazısı şimdilik devre dışı. Eğer oyun çalışırsa tekrar eklenebilir.
-                // if (loadedFont) { 
-                //     const textGeometry = new THREE.TextGeometry( 'KUTU', {
-                //         font: loadedFont,
-                //         size: 0.4,
-                //         height: 0.1,
-                //         curveSegments: 2,
-                //         bevelEnabled: false
-                //     });
-                //     const textMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 }); 
-                //     const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-                //     textMesh.position.set(-0.4, 0.3, 0.51); 
-                //     obstacleMesh.add(textMesh);
-                // }
+                // "KUTU" yazısı
+                if (loadedFont) { 
+                    const textGeometry = new TextGeometry( 'KUTU', { // TextGeometry'yi kullanıyoruz
+                        font: loadedFont,
+                        size: 0.4,
+                        height: 0.1,
+                        curveSegments: 2,
+                        bevelEnabled: false
+                    });
+                    const textMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 }); 
+                    const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+                    // Metnin merkezini bulup ayarlayarak daha iyi konumlandırma
+                    textGeometry.computeBoundingBox();
+                    const textWidth = textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x;
+                    const textHeight = textGeometry.boundingBox.max.y - textGeometry.boundingBox.min.y;
+                    textMesh.position.set(-textWidth / 2, 0.5 - textHeight / 2, 0.51); // Z biraz öne
+                    obstacleMesh.add(textMesh);
+                }
 
 
             } else if (type < 0.7) { // Zıplanabilir Duvar
@@ -633,9 +808,19 @@
                 return; 
             }
 
+            // Hızlandırma gücü sayacı
+            if (isSpeedBoostActive) {
+                speedBoostTimer -= deltaTime;
+                if (speedBoostTimer <= 0) {
+                    isSpeedBoostActive = false;
+                    playerSpeed = 0.1; // Hızı normale döndür
+                    console.log("Hızlandırma sona erdi.");
+                }
+            }
+
             // Skor Güncelleme
-            score += deltaTime; 
-            scoreDisplay.innerHTML = `Skor: ${Math.floor(score)}<br>Coin: ${playerCoins}`;
+            score += deltaTime * (isSpeedBoostActive ? SPEED_BOOST_MULTIPLIER : 1); 
+            updateScoreAndCoinsDisplay();
 
             // Oyuncuyu sürekli ileri hareket ettir
             player.position.z -= playerSpeed;
@@ -652,28 +837,25 @@
                 player.position.y += jumpVelocity;
                 jumpVelocity += gravity; 
                 
-                const jumpProgress = (player.position.y - 0.9) / (jumpForce * jumpForce / (2 * Math.abs(gravity)));
-                const jumpPhase = Math.sin(jumpProgress * Math.PI); 
-                
-                playerBody.scale.y = 1 - Math.abs(Math.sin(jumpProgress * Math.PI * 2)) * 0.1; 
-                playerBody.position.y = (playerBody.scale.y - 1) * 0.6; 
+                // Zıplarken ayakkabıları gizle
+                playerLeftFoot.visible = false;
+                playerRightFoot.visible = false;
 
-                playerLeftFoot.rotation.x = jumpPhase * Math.PI / 2; 
-                playerRightFoot.rotation.x = jumpPhase * Math.PI / 2;
-                playerLeftFoot.position.y = -1.2 + jumpPhase * 0.8; 
-                playerRightFoot.position.y = -1.2 + jumpPhase * 0.8;
-                playerLeftFoot.position.z = jumpPhase * 0.3; 
-                playerRightFoot.position.z = jumpPhase * 0.3;
+                // Karakterin tamamı yukarı kalksın
+                if (player.position.y < 0.9 + jumpForce * jumpForce / (2 * Math.abs(gravity))) { // Zıplamanın zirvesine yaklaşırken
+                     player.position.y += jumpVelocity;
+                }
 
-                playerLeftArm.rotation.x = (Math.PI / 3 * jumpPhase) - (jumpPhase * 0.8); 
-                playerRightArm.rotation.x = (-Math.PI / 3 * jumpPhase) + (jumpPhase * 0.8);
-
+                // Kolların dik yukarı kalkması
+                playerLeftArm.rotation.x = -Math.PI / 2; // Tamamen yukarı
+                playerRightArm.rotation.x = -Math.PI / 2;
 
                 if (player.position.y <= 0.9) { 
                     player.position.y = 0.9;
                     isJumping = false;
                     jumpVelocity = 0;
                     
+                    // Animasyonları resetle ve ayakkabıları geri getir
                     playerBody.scale.y = 1;
                     playerBody.position.y = 0;
                     playerLeftFoot.rotation.x = 0; 
@@ -685,6 +867,8 @@
                     playerLeftArm.rotation.x = 0; 
                     playerRightArm.rotation.x = 0;
                     playerRotationTarget = 0; 
+                    playerLeftFoot.visible = true;
+                    playerRightFoot.visible = true;
                 }
             } else {
                 // Koşu Animasyonu (Yerdeyse)
@@ -750,7 +934,8 @@
                 const pavementGeometry = new THREE.BoxGeometry(pavementWidth, 0.1, 20); 
                 const pavementMaterial = new THREE.MeshLambertMaterial({ color: 0xAAAAAA }); 
                 const pavement = new THREE.Mesh(pavementGeometry, pavementMaterial);
-                pavement.position.set(side * (LANE_WIDTH * 1.5 + pavementWidth / 2 - 0.5), 0.05, zPos);
+                // Kaldırım pozisyonu ayarı: Yolun tam kenarında, üstte değil
+                pavement.position.set(side * (LANE_WIDTH * 1.5 + pavementWidth / 2 - 0.5), 0.0, zPos); // Y koordinatı 0.01 değil 0.0
                 scene.add(pavement);
                 sceneryObjects.push(pavement);
 
@@ -792,7 +977,7 @@
                     if (obstacle.isBreakable) {
                         const earnedCoins = Math.floor(Math.random() * 5) + 1; 
                         playerCoins += earnedCoins;
-                        scoreDisplay.innerHTML = `Skor: ${Math.floor(score)}<br>Coin: ${playerCoins}`;
+                        updateScoreAndCoinsDisplay();
                         scene.remove(obstacle);
                         obstacles.splice(i, 1);
                     } else if (obstacle.isJumpable && isJumping && player.position.y > obstacle.position.y + obstacle.geometry.parameters.height / 2 - 0.2) { 
@@ -826,7 +1011,7 @@
                 // Coin toplama tespiti
                 if (checkCollision(player, coin) && coin.visible) {
                     playerCoins += 1; 
-                    scoreDisplay.innerHTML = `Skor: ${Math.floor(score)}<br>Coin: ${playerCoins}`;
+                    updateScoreAndCoinsDisplay();
                     scene.remove(coin); 
                     coin.visible = false; 
                 }
@@ -864,6 +1049,7 @@
 
         // Dükkanı başlangıçta doldur
         populateShop();
+        updateSpeedBoostButton(); // Başlangıçta hızlandırma butonunu güncelle
     </script>
 </body>
 </html>
