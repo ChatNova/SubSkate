@@ -25,13 +25,14 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            align-items: flex-start; /* Elemanları sola hizala */
-            pointer-events: none; /* UI elemanları Three.js canvasının tıklamasını engellemesin */
-            padding: 20px; /* Kenarlardan boşluk */
-            box-sizing: border-box; /* Padding dahil boyutu hesapla */
+            align-items: flex-start;
+            pointer-events: none;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10; /* UI elemanları canvas'ın üzerinde olsun */
         }
         #shop-button, #score-display {
-            pointer-events: auto; /* Tıklama ve etkileşimi etkinleştir */
+            pointer-events: auto;
             background-color: rgba(0, 0, 0, 0.7);
             color: white;
             border: none;
@@ -49,34 +50,51 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.9);
+            background-color: rgba(0, 0, 0, 0.95);
             color: white;
             padding: 40px;
             border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
             text-align: center;
-            display: none; /* Başlangıçta gizli */
+            display: none;
             pointer-events: auto;
-            max-width: 80%;
-            max-height: 80%;
+            max-width: 90%;
+            width: 500px;
+            max-height: 90%;
             overflow-y: auto;
+            z-index: 20; /* Dükkan UI'ın üzerinde olsun */
         }
         #shop-display h2 {
             margin-top: 0;
             color: #FFD700; /* Altın sarısı */
         }
-        #shop-display button {
+        .shop-item {
+            background-color: rgba(50, 50, 50, 0.7);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.1em;
+        }
+        .shop-item button {
             background-color: #4CAF50;
             color: white;
-            padding: 10px 20px;
+            padding: 8px 15px;
             border: none;
-            border-radius: 5px;
+            border-radius: 4px;
             cursor: pointer;
-            margin-top: 20px;
-            font-size: 16px;
+            font-size: 0.9em;
+            transition: background-color 0.3s;
         }
-        #shop-display button:hover {
+        .shop-item button:hover {
             background-color: #45a049;
+        }
+        #shop-message {
+            color: yellow;
+            margin-top: 10px;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -89,8 +107,10 @@
     </div>
 
     <div id="shop-display">
-        <h2>Dükkan</h2>
-        <p>Burası dükkan! Yakında karakterler, özel güçler ve iksirler burada olacak.</p>
+        <h2>SubSkate Dükkanı</h2>
+        <div id="shop-items-container">
+            </div>
+        <p id="shop-message"></p>
         <button id="close-shop-button">Kapat</button>
     </div>
     
@@ -102,66 +122,199 @@
         const shopButton = document.getElementById('shop-button');
         const shopDisplay = document.getElementById('shop-display');
         const closeShopButton = document.getElementById('close-shop-button');
+        const shopItemsContainer = document.getElementById('shop-items-container');
+        const shopMessage = document.getElementById('shop-message');
+
+        // --- Dükkan Verileri (Geçici) ---
+        const shopItems = [
+            { id: 'char1', type: 'character', name: 'Hızlı Ayşe', price: 100, owned: false, current: true, description: 'Başlangıç karakteri.' },
+            { id: 'char2', type: 'character', name: 'Zıplayan Can', price: 250, owned: false, current: false, description: 'Daha yüksek zıplama.' },
+            { id: 'power1', type: 'power', name: 'Mıknatıs (5x)', price: 50, description: '5 saniye boyunca coinleri çeker.' },
+            { id: 'power2', type: 'power', name: 'Kalkan (1x)', price: 75, description: 'Bir engelden korur.' },
+            { id: 'potion1', type: 'potion', name: 'Can İksiri', price: 200, description: 'Canını fuler.' }
+        ];
+
+        let playerCoins = 0; // Oyuncunun coinleri
+        let playerCurrentCharacterId = 'char1'; // Aktif karakter
+
+        // --- Dükkanı Doldurma Fonksiyonu ---
+        function populateShop() {
+            shopItemsContainer.innerHTML = ''; // Önceki öğeleri temizle
+            shopItems.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'shop-item';
+                let buttonText = 'Satın Al';
+                let buttonDisabled = false;
+                let itemStatus = '';
+
+                if (item.type === 'character') {
+                    if (item.current) {
+                        itemStatus = ' (Aktif)';
+                        buttonText = 'Aktif';
+                        buttonDisabled = true;
+                    } else if (item.owned) {
+                        itemStatus = ' (Sahip Olunan)';
+                        buttonText = 'Seç';
+                    }
+                }
+
+                itemDiv.innerHTML = `
+                    <span>${item.name} ${itemStatus} - ${item.price} Coin</span>
+                    <button id="buy-${item.id}" ${buttonDisabled ? 'disabled' : ''}>${buttonText}</button>
+                `;
+                shopItemsContainer.appendChild(itemDiv);
+
+                const buyButton = itemDiv.querySelector(`#buy-${item.id}`);
+                buyButton.addEventListener('click', () => handleShopPurchase(item));
+            });
+            // Güncel coin miktarını skorda gösterelim
+            scoreDisplay.innerHTML = `Skor: ${score}<br>Coin: ${playerCoins}`;
+        }
+
+        // --- Satın Alma İşlevi ---
+        function handleShopPurchase(item) {
+            shopMessage.textContent = ''; // Mesajı temizle
+            if (playerCoins >= item.price) {
+                playerCoins -= item.price;
+                if (item.type === 'character') {
+                    shopItems.find(i => i.id === playerCurrentCharacterId).current = false; // Eski karakteri devre dışı bırak
+                    item.owned = true;
+                    item.current = true;
+                    playerCurrentCharacterId = item.id;
+                    shopMessage.textContent = `${item.name} satın alındı ve aktif edildi!`;
+                    // TODO: Karakter modelini değiştirme mantığı buraya gelecek
+                } else {
+                    // Diğer öğeler için satın alma mantığı (power-up, iksir)
+                    shopMessage.textContent = `${item.name} satın alındı!`;
+                }
+                populateShop(); // Dükkanı yeniden yükle (güncel durumu yansıtmak için)
+                scoreDisplay.innerHTML = `Skor: ${score}<br>Coin: ${playerCoins}`; // Coin miktarını güncelle
+            } else {
+                shopMessage.textContent = 'Yeterli coinin yok!';
+            }
+        }
 
         // --- Shop Butonu Olay Dinleyicisi ---
         shopButton.addEventListener('click', () => {
+            populateShop(); // Dükkanı açmadan önce içini doldur
             shopDisplay.style.display = 'block'; // Dükkanı göster
+            isGamePaused = true; // Oyunu duraklat
         });
 
         closeShopButton.addEventListener('click', () => {
             shopDisplay.style.display = 'none'; // Dükkanı kapat
+            isGamePaused = false; // Oyunu devam ettir
         });
 
         // --- Sahne Ayarları ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB); // Sahne arkaplan rengi (gökyüzü)
+        scene.background = new THREE.Color(0x87CEEB); 
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 5); // Kamerayı başlangıçta oyuncudan biraz yukarı ve geriye konumlandır
+        camera.position.set(0, 2, 5); 
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true }); // Daha pürüzsüz kenarlar için antialias
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
         // --- Işıklandırma ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Ortam ışığı
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); 
         scene.add(ambientLight);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5); // Yönlü ışık (güneş gibi)
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5); 
         directionalLight.position.set(0, 10, 5);
         scene.add(directionalLight);
 
         // --- Zemin Oluşturma (Yol) ---
-        const groundGeometry = new THREE.PlaneGeometry(10, 1000); // Geniş, uzun bir düzlem
-        const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x556B2F }); // Yeşilimsi kahverengi
+        const groundGeometry = new THREE.PlaneGeometry(10, 2000); // Daha uzun zemin
+        const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x556B2F });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2; // X ekseninde 90 derece döndürerek zemini yatay yap
-        ground.position.y = 0; // Zemin seviyesi
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
         scene.add(ground);
 
-        // --- Oyuncu Küpü Oluşturma ---
-        const playerGeometry = new THREE.BoxGeometry(0.8, 1.8, 0.8); // Oyuncu boyutlarında bir küp
+        // --- Oyuncu (İnsan Figürü Taklidi) ---
+        const playerBodyGeometry = new THREE.BoxGeometry(0.8, 1.2, 0.6); // Gövde
+        const playerHeadGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6); // Kafa
+        const playerLegsGeometry = new THREE.BoxGeometry(0.3, 0.8, 0.3); // Bacaklar
+
         const playerMaterial = new THREE.MeshLambertMaterial({ color: 0xFF4500 }); // Turuncu renk
-        const player = new THREE.Mesh(playerGeometry, playerMaterial);
-        player.position.set(0, 0.9, 0); // Zeminin biraz üstüne koy (boyunun yarısı kadar)
+
+        const playerBody = new THREE.Mesh(playerBodyGeometry, playerMaterial);
+        const playerHead = new THREE.Mesh(playerHeadGeometry, playerMaterial);
+        const playerLeftLeg = new THREE.Mesh(playerLegsGeometry, playerMaterial);
+        const playerRightLeg = new THREE.Mesh(playerLegsGeometry, playerMaterial);
+
+        // Pozisyonları ayarla (oyuncu bir Group içinde olacak)
+        playerHead.position.y = 0.9; // Gövdenin üstüne
+        playerLeftLeg.position.set(-0.25, -1.0, 0); // Gövdenin altına
+        playerRightLeg.position.set(0.25, -1.0, 0); // Gövdenin altına
+
+        const player = new THREE.Group(); // Oyuncuyu bir grup olarak oluştur
+        player.add(playerBody);
+        player.add(playerHead);
+        player.add(playerLeftLeg);
+        player.add(playerRightLeg);
+
+        player.position.set(0, 0.9, 0); // Zeminin biraz üstüne koy
         scene.add(player);
 
         // --- Oyun Değişkenleri ---
-        const playerSpeed = 0.1; // Oyuncunun ileri hızı
-        const laneWidth = 3; // Koridor genişliği (merkezden yana)
-        let currentLane = 0; // -1: sol, 0: orta, 1: sağ
+        const playerSpeed = 0.1; 
+        const laneWidth = 3; 
+        let currentLane = 0; 
         let isJumping = false;
         let jumpVelocity = 0;
         const jumpForce = 0.2;
         const gravity = -0.01;
 
         let score = 0;
-        let coins = 0;
+        let lastScoreUpdateTime = 0;
+        let isGamePaused = false; // Oyunu duraklatma durumu
+
+        // --- Karakter Animasyonları İçin Değişkenler ---
+        let animationTime = 0;
+        const runAnimationSpeed = 0.1;
+        const jumpAnimationHeight = 0.5;
+
+        // --- Engeller ve Coinler ---
+        const obstacles = [];
+        const coinsArray = [];
+        const spawnInterval = 100; // Her X karede bir engel/coin üretme denemesi
+        let lastSpawnFrame = 0;
+        const obstacleTypes = ['wall', 'box'];
+        const coinGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16); // Coin şekli
+        const coinMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Altın sarısı coin
+
+        function createObstacle(lane) {
+            const obstacleGeometry = new THREE.BoxGeometry(2, 2, 0.8); // Basit engel
+            const obstacleMaterial = new THREE.MeshLambertMaterial({ color: 0x8B0000 }); // Koyu kırmızı
+            const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+            
+            obstacle.position.set(lane * laneWidth, 1, player.position.z - 50); // Oyuncudan uzakta oluştur
+            scene.add(obstacle);
+            obstacles.push(obstacle);
+        }
+
+        function createCoin(lane) {
+            const coin = new THREE.Mesh(coinGeometry, coinMaterial);
+            coin.rotation.x = Math.PI / 2; // Yere paralel
+            coin.position.set(lane * laneWidth, 0.5, player.position.z - 50 - Math.random() * 10); // Engelin biraz önünde/arkasında
+            scene.add(coin);
+            coinsArray.push(coin);
+        }
+
+        // --- Çarpışma Tespiti ---
+        function checkCollision(obj1, obj2) {
+            const box1 = new THREE.Box3().setFromObject(obj1);
+            const box2 = new THREE.Box3().setFromObject(obj2);
+            return box1.intersectsBox(box2);
+        }
 
         // --- Klavye Kontrolleri ---
         const keys = {};
         document.addEventListener('keydown', (event) => {
-            if (shopDisplay.style.display === 'block') return; // Dükkan açıksa klavye kontrolünü engelle
+            if (isGamePaused) return; 
             keys[event.key.toLowerCase()] = true;
         });
         document.addEventListener('keyup', (event) => {
@@ -173,13 +326,13 @@
         let touchStartY = 0;
 
         document.addEventListener('touchstart', (event) => {
-            if (shopDisplay.style.display === 'block') return; // Dükkan açıksa dokunmatik kontrolü engelle
+            if (isGamePaused) return; 
             touchStartX = event.touches[0].clientX;
             touchStartY = event.touches[0].clientY;
         }, false);
 
         document.addEventListener('touchend', (event) => {
-            if (shopDisplay.style.display === 'block') return; // Dükkan açıksa dokunmatik kontrolü engelle
+            if (isGamePaused) return; 
             const touchEndX = event.changedTouches[0].clientX;
             const touchEndY = event.changedTouches[0].clientY;
 
@@ -191,8 +344,10 @@
                 if (dy < 0 && !isJumping) { // Yukarı kaydırma (zıplama)
                     isJumping = true;
                     jumpVelocity = jumpForce;
+                    // Zıplama animasyonu için bacakları kaldır
+                    playerLeftLeg.position.y = -0.5; 
+                    playerRightLeg.position.y = -0.5;
                 }
-                // TODO: Aşağı kaydırma için yuvarlanma/eğilme eklenecek
             } 
             // Yatay kaydırma (şerit değiştirme)
             else if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) { 
@@ -204,22 +359,27 @@
             }
         }, false);
 
-
         // --- Animasyon Döngüsü ---
+        let lastFrameTime = performance.now(); // Son kare zamanı
+
         function animate() {
             requestAnimationFrame(animate);
 
-            // Dükkan açıksa oyun duraklasın
-            if (shopDisplay.style.display === 'block') {
-                return; // Oyunu çizme veya güncelleme
+            const currentTime = performance.now();
+            const deltaTime = (currentTime - lastFrameTime) / 1000; // Saniye cinsinden geçen süre
+            lastFrameTime = currentTime;
+
+            if (isGamePaused) {
+                renderer.render(scene, camera); // Oyunu dondur ama sahneyi çizmeye devam et
+                return; 
             }
 
-            // Skor ve Coin güncelleme (geçici)
-            score += Math.floor(playerSpeed * 10); // İleri gittikçe skor artsın
-            if (Math.random() < 0.01) { // Rastgele coin çıksın (geçici)
-                coins += 1;
+            // Skor Güncelleme (saniyede 1 artacak)
+            score += deltaTime;
+            if (performance.now() - lastScoreUpdateTime >= 1000) { // Her saniye başı
+                scoreDisplay.innerHTML = `Skor: ${Math.floor(score)}<br>Coin: ${playerCoins}`;
+                lastScoreUpdateTime = performance.now();
             }
-            scoreDisplay.innerHTML = `Skor: ${score}<br>Coin: ${coins}`;
 
 
             // Oyuncuyu sürekli ileri hareket ettir
@@ -233,31 +393,101 @@
             // Zıplama Mantığı
             if (isJumping) {
                 player.position.y += jumpVelocity;
-                jumpVelocity += gravity; // Yerçekimi uygula
+                jumpVelocity += gravity; 
+
+                // Zıplama animasyonu (ayakları hareket ettir)
+                playerLeftLeg.position.y = -1.0 + Math.abs(Math.sin(player.position.y * jumpAnimationHeight)) * 0.2;
+                playerRightLeg.position.y = -1.0 - Math.abs(Math.sin(player.position.y * jumpAnimationHeight)) * 0.2;
+
 
                 if (player.position.y <= 0.9) { // Yere düştüğünde
                     player.position.y = 0.9;
                     isJumping = false;
                     jumpVelocity = 0;
+                    // Zıplama bitti, koşu animasyonuna geri dön
+                    playerLeftLeg.position.y = -1.0; 
+                    playerRightLeg.position.y = -1.0;
                 }
+            } else {
+                // Koşu Animasyonu (Yerdeyse)
+                animationTime += runAnimationSpeed;
+                playerLeftLeg.position.y = -1.0 + Math.sin(animationTime) * 0.1;
+                playerRightLeg.position.y = -1.0 - Math.sin(animationTime) * 0.1;
             }
 
             // Klavye ile zıplama
-            if (keys[' '] && !isJumping) { // Boşluk tuşu (Spacebar)
+            if (keys[' '] && !isJumping) { 
                 isJumping = true;
                 jumpVelocity = jumpForce;
+                playerLeftLeg.position.y = -0.5; 
+                playerRightLeg.position.y = -0.5;
             }
 
             // Klavye ile yana kayma (A/D veya Sol/Sağ Ok)
             if (keys['a'] || keys['arrowleft']) {
                 currentLane = Math.max(currentLane - 1, -1);
-                keys['a'] = false; // Tuşu bırakmış gibi yap ki tek basışta bir kere kaydır
+                keys['a'] = false; 
                 keys['arrowleft'] = false;
             }
             if (keys['d'] || keys['arrowright']) {
                 currentLane = Math.min(currentLane + 1, 1);
-                keys['d'] = false; // Tuşu bırakmış gibi yap ki tek basışta bir kere kaydır
+                keys['d'] = false; 
                 keys['arrowright'] = false;
+            }
+
+            // --- Engel ve Coin Üretimi ---
+            if (Math.abs(player.position.z % spawnInterval) < playerSpeed) { // Belirli aralıklarla
+                const randomLane = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+                const spawnType = Math.random();
+
+                if (spawnType < 0.6) { // %60 engel
+                    createObstacle(randomLane);
+                } else if (spawnType < 0.9) { // %30 coin
+                    createCoin(randomLane);
+                }
+            }
+
+            // --- Engel ve Coinleri Hareket Ettirme ve Silme ---
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obstacle = obstacles[i];
+                obstacle.position.z += playerSpeed; // Oyuncuyla göreceli olarak yaklaşır
+
+                // Çarpışma Tespiti
+                if (checkCollision(player, obstacle)) {
+                    console.log("Çarpıştın! Oyun Bitti (şimdilik)!");
+                    // TODO: Oyun bitiş ekranı, yeniden başlama vb. mantık buraya gelecek
+                    isGamePaused = true; // Oyunu duraklat
+                    shopButton.textContent = "Tekrar Oyna"; // Buton metnini değiştir
+                    shopButton.onclick = () => { // Butona tıklanınca oyunu yeniden başlat
+                        location.reload(); // Sayfayı yenile
+                    };
+                    return; // Animasyon döngüsünden çık
+                }
+
+                // Ekran dışına çıkan engelleri sil
+                if (obstacle.position.z > camera.position.z + 10) {
+                    scene.remove(obstacle);
+                    obstacles.splice(i, 1);
+                }
+            }
+
+            for (let i = coinsArray.length - 1; i >= 0; i--) {
+                const coin = coinsArray[i];
+                coin.position.z += playerSpeed;
+
+                // Coin toplama tespiti
+                if (checkCollision(player, coin) && coin.visible) {
+                    playerCoins += 1; // Coin kazan
+                    scoreDisplay.innerHTML = `Skor: ${Math.floor(score)}<br>Coin: ${playerCoins}`;
+                    scene.remove(coin); // Coini sahneden kaldır
+                    coin.visible = false; // Görünmez yap (tekrar toplama olmaması için)
+                }
+
+                // Ekran dışına çıkan coinleri sil
+                if (coin.position.z > camera.position.z + 10) {
+                    scene.remove(coin);
+                    coinsArray.splice(i, 1);
+                }
             }
 
             renderer.render(scene, camera);
@@ -272,7 +502,8 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        console.log("SubSkate: 3D Sahne ve Temel Hareket Başlatıldı!");
+        // Dükkanı başlangıçta doldur
+        populateShop();
     </script>
 </body>
 </html>
