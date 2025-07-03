@@ -78,6 +78,14 @@
             align-items: center;
             font-size: 1.1em;
         }
+        .shop-item .color-box {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ccc;
+            margin-right: 10px;
+            display: inline-block;
+            vertical-align: middle;
+        }
         .shop-item button {
             background-color: #4CAF50;
             color: white;
@@ -108,6 +116,7 @@
 
     <div id="shop-display">
         <h2>SubSkate Dükkanı</h2>
+        <h3>Kıyafetler</h3>
         <div id="shop-items-container">
             </div>
         <p id="shop-message"></p>
@@ -125,40 +134,43 @@
         const shopItemsContainer = document.getElementById('shop-items-container');
         const shopMessage = document.getElementById('shop-message');
 
-        // --- Dükkan Verileri (Geçici) ---
-        const shopItems = [
-            { id: 'char1', type: 'character', name: 'Hızlı Ayşe', price: 0, owned: true, current: true, description: 'Başlangıç karakteri.' },
-            { id: 'char2', type: 'character', name: 'Zıplayan Can', price: 250, owned: false, current: false, description: 'Daha yüksek zıplama.' },
-            { id: 'power1', type: 'power', name: 'Mıknatıs (5x)', price: 50, description: '5 saniye boyunca coinleri çeker.' },
-            { id: 'power2', type: 'power', name: 'Kalkan (1x)', price: 75, description: 'Bir engelden korur.' },
-            { id: 'potion1', type: 'potion', name: 'Can İksiri', price: 200, description: 'Canını fuler.' }
+        // --- Dükkan Verileri (Kıyafetler) ---
+        // Kıyafetlerin varsayılan renkleri ve sahip olunup olunmadığı bilgisi
+        const outfitItems = [
+            { id: 'shirt_blue', type: 'shirt', name: 'Mavi Üst', color: 0x1E90FF, price: 0, owned: true, current: true },
+            { id: 'shirt_red', type: 'shirt', name: 'Kırmızı Üst', color: 0xFF0000, price: 100, owned: false, current: false },
+            { id: 'shirt_green', type: 'shirt', name: 'Yeşil Üst', color: 0x008000, price: 100, owned: false, current: false },
+            { id: 'pants_green', type: 'pants', name: 'Yeşil Pantolon', color: 0x228B22, price: 0, owned: true, current: true },
+            { id: 'pants_blue', type: 'pants', name: 'Mavi Pantolon', color: 0x0000FF, price: 100, owned: false, current: false },
+            { id: 'pants_black', type: 'pants', name: 'Siyah Pantolon', color: 0x000000, price: 100, owned: false, current: false },
+            { id: 'shoes_brown', type: 'shoes', name: 'Kahverengi Ayakkabı', color: 0x8B4513, price: 0, owned: true, current: true },
+            { id: 'shoes_white', type: 'shoes', name: 'Beyaz Ayakkabı', color: 0xFFFFFF, price: 75, owned: false, current: false },
+            { id: 'shoes_red', type: 'shoes', name: 'Kırmızı Ayakkabı', color: 0xDD2222, price: 75, owned: false, current: false },
         ];
 
-        let playerCoins = 0; // Oyuncunun coinleri
-        let playerCurrentCharacterId = 'char1'; // Aktif karakter
+        let playerCoins = 0; 
 
         // --- Dükkanı Doldurma Fonksiyonu ---
         function populateShop() {
             shopItemsContainer.innerHTML = ''; 
-            shopItems.forEach(item => {
+            outfitItems.forEach(item => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'shop-item';
                 let buttonText = 'Satın Al';
                 let buttonDisabled = false;
                 let itemStatus = '';
 
-                if (item.type === 'character') {
-                    if (item.current) {
-                        itemStatus = ' (Aktif)';
-                        buttonText = 'Aktif';
-                        buttonDisabled = true;
-                    } else if (item.owned) {
-                        itemStatus = ' (Seç)';
-                        buttonText = 'Seç';
-                    }
+                if (item.current) {
+                    itemStatus = ' (Aktif)';
+                    buttonText = 'Aktif';
+                    buttonDisabled = true;
+                } else if (item.owned) {
+                    itemStatus = ' (Seç)';
+                    buttonText = 'Seç';
                 }
 
                 itemDiv.innerHTML = `
+                    <span class="color-box" style="background-color: #${item.color.toString(16).padStart(6, '0')};"></span>
                     <span>${item.name} ${itemStatus} - ${item.price} Coin</span>
                     <button id="buy-${item.id}" ${buttonDisabled ? 'disabled' : ''}>${buttonText}</button>
                 `;
@@ -170,40 +182,56 @@
             scoreDisplay.innerHTML = `Skor: ${Math.floor(score)}<br>Coin: ${playerCoins}`;
         }
 
-        // --- Satın Alma İşlevi ---
+        // --- Satın Alma ve Giydirme İşlevi ---
         function handleShopPurchase(item) {
             shopMessage.textContent = ''; 
             if (item.current) { 
-                shopMessage.textContent = 'Bu zaten aktif karakterin!';
+                shopMessage.textContent = 'Bu zaten aktif kıyafetin!';
                 return;
             }
-            if (item.owned && item.type === 'character') { 
-                shopItems.find(i => i.id === playerCurrentCharacterId).current = false;
+            if (item.owned) { 
+                // Aynı tipteki diğer kıyafetleri inaktif yap
+                outfitItems.filter(o => o.type === item.type).forEach(o => o.current = false);
                 item.current = true;
-                playerCurrentCharacterId = item.id;
                 shopMessage.textContent = `${item.name} aktif edildi!`;
-                // TODO: Karakter modelini değiştirme mantığı buraya gelecek
+                // Karakterin rengini güncelle
+                updatePlayerOutfit(item.type, item.color);
                 populateShop();
                 return;
             }
             if (playerCoins >= item.price) {
                 playerCoins -= item.price;
-                if (item.type === 'character') {
-                    shopItems.find(i => i.id === playerCurrentCharacterId).current = false; 
-                    item.owned = true;
-                    item.current = true;
-                    playerCurrentCharacterId = item.id;
-                    shopMessage.textContent = `${item.name} satın alındı ve aktif edildi!`;
-                    // TODO: Karakter modelini değiştirme mantığı buraya gelecek
-                } else {
-                    // Diğer öğeler için satın alma mantığı (power-up, iksir)
-                    shopMessage.textContent = `${item.name} satın alındı!`;
-                }
+                outfitItems.filter(o => o.type === item.type).forEach(o => o.current = false); 
+                item.owned = true;
+                item.current = true;
+                shopMessage.textContent = `${item.name} satın alındı ve aktif edildi!`;
+                updatePlayerOutfit(item.type, item.color);
                 populateShop(); 
             } else {
                 shopMessage.textContent = 'Yeterli coinin yok!';
             }
         }
+
+        // --- Karakterin Kıyafetini Güncelleme Fonksiyonu ---
+        function updatePlayerOutfit(type, color) {
+            let materialToUpdate;
+            switch (type) {
+                case 'shirt':
+                    materialToUpdate = playerBody.material;
+                    break;
+                case 'pants':
+                    materialToUpdate = playerPants.material;
+                    break;
+                case 'shoes':
+                    playerLeftFoot.material.color.set(color);
+                    playerRightFoot.material.color.set(color);
+                    return; // Ayakkabılar için özel durum
+                default:
+                    return;
+            }
+            materialToUpdate.color.set(color);
+        }
+
 
         // --- Shop Butonu Olay Dinleyicisi ---
         shopButton.addEventListener('click', () => {
@@ -237,19 +265,39 @@
         scene.add(directionalLight);
 
         // --- Zemin Oluşturma (Yol) ---
-        const groundGeometry = new THREE.PlaneGeometry(10, 2000); 
-        const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x556B2F }); // Yeşilimsi kahverengi yol
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.position.y = 0;
-        scene.add(ground);
+        // Asfalt yol
+        const roadGeometry = new THREE.PlaneGeometry(laneWidth * 3 + 2, 2000); // 3 şerit + kenarlar
+        const roadMaterial = new THREE.MeshLambertMaterial({ color: 0x333333 }); // Koyu gri asfalt
+        const road = new THREE.Mesh(roadGeometry, roadMaterial);
+        road.rotation.x = -Math.PI / 2;
+        road.position.y = 0.01; // Kaldırımdan biraz yukarıda
+        scene.add(road);
+
+        // Şerit çizgileri
+        const dashedLineMaterial = new THREE.LineDashedMaterial({
+            color: 0xffff00, // Sarı
+            linewidth: 3,
+            scale: 1,
+            dashSize: 1,
+            gapSize: 1
+        });
+
+        const lineGeometry1 = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-laneWidth / 2, 0.02, -1000), new THREE.Vector3(-laneWidth / 2, 0.02, 1000)]);
+        const line1 = new THREE.Line(lineGeometry1, dashedLineMaterial);
+        line1.computeLineDistances();
+        scene.add(line1);
+
+        const lineGeometry2 = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(laneWidth / 2, 0.02, -1000), new THREE.Vector3(laneWidth / 2, 0.02, 1000)]);
+        const line2 = new THREE.Line(lineGeometry2, dashedLineMaterial);
+        line2.computeLineDistances();
+        scene.add(line2);
+
 
         // --- Oyuncu (İnsan Figürü ve Kıyafetler) ---
         const player = new THREE.Group(); 
 
-        // Gövde (Üst)
-        const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0x1E90FF }); 
-        const playerBody = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.6), bodyMaterial);
+        // Gövde (Üst) - Başlangıç rengi dükkandaki ilk tişörtün rengi
+        const playerBody = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.6), new THREE.MeshLambertMaterial({ color: outfitItems.find(item => item.current && item.type === 'shirt').color }));
         player.add(playerBody);
 
         // Kafa
@@ -258,20 +306,18 @@
         playerHead.position.y = 0.9;
         playerBody.add(playerHead); 
 
-        // Pantolon
-        const pantsMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 }); 
-        const playerPants = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.6), pantsMaterial);
+        // Pantolon - Başlangıç rengi dükkandaki ilk pantolonun rengi
+        const playerPants = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.6), new THREE.MeshLambertMaterial({ color: outfitItems.find(item => item.current && item.type === 'pants').color }));
         playerPants.position.y = -0.6; 
         playerBody.add(playerPants);
 
-        // Sol Ayak
-        const shoeMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); 
-        const playerLeftFoot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.5), shoeMaterial);
+        // Sol Ayak - Başlangıç rengi dükkandaki ilk ayakkabının rengi
+        const playerLeftFoot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.5), new THREE.MeshLambertMaterial({ color: outfitItems.find(item => item.current && item.type === 'shoes').color }));
         playerLeftFoot.position.set(-0.25, -1.2, 0.1); 
         player.add(playerLeftFoot);
 
-        // Sağ Ayak
-        const playerRightFoot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.5), shoeMaterial);
+        // Sağ Ayak - Başlangıç rengi dükkandaki ilk ayakkabının rengi
+        const playerRightFoot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.5), new THREE.MeshLambertMaterial({ color: outfitItems.find(item => item.current && item.type === 'shoes').color }));
         playerRightFoot.position.set(0.25, -1.2, 0.1); 
         player.add(playerRightFoot);
 
@@ -292,12 +338,12 @@
 
         // --- Oyun Değişkenleri ---
         const playerSpeed = 0.1; 
-        const laneWidth = 3; 
+        const LANE_WIDTH = 3; // Şerit genişliği
         let currentLane = 0; 
         let isJumping = false;
         let jumpVelocity = 0;
-        const jumpForce = 0.35; // Zıplama kuvveti artırıldı (daha yüksek zıplama)
-        const gravity = -0.02; // Yerçekimi biraz artırıldı (daha hızlı iniş)
+        const jumpForce = 0.45; // Zıplama kuvveti daha da artırıldı
+        const gravity = -0.025; // Yerçekimi daha da artırıldı
 
         let score = 0;
         let lastScoreUpdateTime = performance.now(); 
@@ -305,22 +351,18 @@
 
         // --- Karakter Animasyonları İçin Değişkenler ---
         let animationTime = 0;
-        const runAnimationSpeed = 0.25; // Koşu animasyonu hızı artırıldı
-        const jumpAnimationHeightFactor = 0.8; 
-        const jumpAnimationArmSwing = 0.6; // Zıplamada kol sallama açısı artırıldı
-        const laneChangeAnimationSpeed = 0.2; // Şerit değiştirme dönüş hızı artırıldı
+        const runAnimationSpeed = 0.3; // Koşu animasyonu hızı daha da artırıldı
         let playerRotationTarget = 0; 
 
         // --- Engeller, Coinler ve Kırılabilir Kutular ---
         const obstacles = [];
         const coinsArray = [];
         const sceneryObjects = []; // Mahalle için dekoratif objeler
-        const breakableBoxes = []; // Kırılabilir kutular
-
+        
         let lastSpawnZ = 0; 
-        const spawnDistanceMin = 15; // Objeler arası minimum Z mesafesi
-        const spawnDistanceMax = 30; // Objeler arası maksimum Z mesafesi
-        const scenerySpawnDistance = 25; // Sahne objeleri için spawn mesafesi
+        const spawnDistanceMin = 12; // Objeler arası minimum Z mesafesi
+        const spawnDistanceMax = 25; // Objeler arası maksimum Z mesafesi
+        const scenerySpawnDistance = 20; // Sahne objeleri için spawn mesafesi
         let lastScenerySpawnZ = 0;
 
         const coinGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16); 
@@ -335,29 +377,50 @@
             bodyMesh.position.y = height / 2;
             buildingGroup.add(bodyMesh);
 
-            // Çatı (isteğe bağlı)
+            // Çatı (piramit veya düz)
             const roofHeight = width * 0.2;
-            const roofGeometry = new THREE.ConeGeometry(width / 1.5, roofHeight, 4); // Piramit çatı
-            const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-            const roofMesh = new THREE.Mesh(roofGeometry, roofMaterial);
-            roofMesh.position.y = height + roofHeight / 2;
+            let roofMesh;
+            if (Math.random() < 0.7) { // %70 piramit çatı
+                const roofGeometry = new THREE.ConeGeometry(width / 1.5, roofHeight, 4); 
+                const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                roofMesh = new THREE.Mesh(roofGeometry, roofMaterial);
+                roofMesh.position.y = height + roofHeight / 2;
+            } else { // %30 düz çatı
+                const roofGeometry = new THREE.BoxGeometry(width, 0.2, depth);
+                const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x555555 });
+                roofMesh = new THREE.Mesh(roofGeometry, roofMaterial);
+                roofMesh.position.y = height + 0.1;
+            }
             buildingGroup.add(roofMesh);
 
-            // Pencereler (basit)
-            const windowMaterial = new THREE.MeshLambertMaterial({ color: 0xADD8E6 }); // Açık mavi pencere
+            // Pencereler
+            const windowMaterial = new THREE.MeshLambertMaterial({ color: 0xADD8E6 }); 
             const windowGeometry = new THREE.BoxGeometry(width * 0.2, height * 0.15, 0.1);
+
+            const facadeTypes = ['front', 'side']; // Ön veya yan cepheye pencere
+            const selectedFacade = facadeTypes[Math.floor(Math.random() * facadeTypes.length)];
+
             const numWindowsX = Math.floor(width / (width * 0.3));
             const numWindowsY = Math.floor(height / (height * 0.2));
 
             for (let i = 0; i < numWindowsX; i++) {
                 for (let j = 0; j < numWindowsY; j++) {
-                    if (Math.random() > 0.3) { // Her pencere olmasın
+                    if (Math.random() > 0.3) { 
                         const windowMesh = new THREE.Mesh(windowGeometry, windowMaterial);
-                        windowMesh.position.set(
-                            (i - numWindowsX / 2 + 0.5) * (width * 0.25),
-                            (j - numWindowsY / 2 + 0.5) * (height * 0.2) + height / 2,
-                            depth / 2 + 0.05 // Binanın yüzeyinde
-                        );
+                        if (selectedFacade === 'front') {
+                            windowMesh.position.set(
+                                (i - numWindowsX / 2 + 0.5) * (width * 0.25),
+                                (j - numWindowsY / 2 + 0.5) * (height * 0.2) + height / 2,
+                                depth / 2 + 0.05 
+                            );
+                        } else { // Yan cepheye
+                            windowMesh.rotation.y = Math.PI / 2;
+                            windowMesh.position.set(
+                                side * (width / 2 + 0.05), // Binanın yan yüzeyinde
+                                (j - numWindowsY / 2 + 0.5) * (height * 0.2) + height / 2,
+                                (i - numWindowsX / 2 + 0.5) * (depth * 0.25)
+                            );
+                        }
                         buildingGroup.add(windowMesh);
                     }
                 }
@@ -374,16 +437,16 @@
             const postMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
             const crossbarGeometry = new THREE.BoxGeometry(length, 0.2, 0.2);
 
-            for (let i = -length / 2; i <= length / 2; i += length / 4) { // Direkler
+            for (let i = -length / 2; i <= length / 2; i += length / 4) { 
                 const post = new THREE.Mesh(postGeometry, postMaterial);
                 post.position.set(i, height / 2, 0);
                 fenceGroup.add(post);
             }
-            const crossbar1 = new THREE.Mesh(crossbarGeometry, postMaterial); // Üst çıta
+            const crossbar1 = new THREE.Mesh(crossbarGeometry, postMaterial); 
             crossbar1.position.set(0, height * 0.75, 0);
             fenceGroup.add(crossbar1);
 
-            const crossbar2 = new THREE.Mesh(crossbarGeometry, postMaterial); // Alt çıta
+            const crossbar2 = new THREE.Mesh(crossbarGeometry, postMaterial); 
             crossbar2.position.set(0, height * 0.25, 0);
             fenceGroup.add(crossbar2);
 
@@ -400,7 +463,7 @@
             trunk.position.y = 1.5;
             treeGroup.add(trunk);
 
-            const leavesGeometry = new THREE.SphereGeometry(1.5, 16, 16); // Daha detaylı yapraklar
+            const leavesGeometry = new THREE.SphereGeometry(1.5, 16, 16); 
             const leavesMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
             const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
             leaves.position.y = 3.5;
@@ -419,12 +482,30 @@
             pole.position.y = 1.5;
             signGroup.add(pole);
 
+            // İşaret paneli
             const signGeometry = new THREE.PlaneGeometry(1.5, 1);
-            const signMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide }); // Beyaz işaret
+            const signMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide }); 
             const sign = new THREE.Mesh(signGeometry, signMaterial);
             sign.position.set(0, 2.5, -0.05);
             signGroup.add(sign);
             
+            // "STOP" yazısı veya basit bir ikon
+            const loader = new THREE.FontLoader();
+            loader.load( 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/fonts/helvetiker_regular.typeface.json', function ( font ) {
+                const textGeometry = new THREE.TextGeometry( 'STOP', {
+                    font: font,
+                    size: 0.5,
+                    height: 0.1,
+                    curveSegments: 2,
+                    bevelEnabled: false
+                });
+                const textMaterial = new THREE.MeshBasicMaterial({ color: 0xFF0000 });
+                const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+                textMesh.position.set(-0.6, 2.2, 0); 
+                signGroup.add(textMesh);
+            });
+
+
             signGroup.position.set(x, 0, z);
             scene.add(signGroup);
             sceneryObjects.push(signGroup);
@@ -434,24 +515,41 @@
         function createObstacle(lane, zPosition) {
             let obstacleMesh;
             const type = Math.random();
-            if (type < 0.4) { // Kutular (kırılabilir olacak)
+            if (type < 0.4) { // Kırılabilir Kutular
                 const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
-                const boxMaterial = new THREE.MeshLambertMaterial({ color: 0x654321 }); // Kahverengi kutu
+                const boxMaterial = new THREE.MeshLambertMaterial({ color: 0xD2B48C }); // Açık kahverengi kutu
                 obstacleMesh = new THREE.Mesh(boxGeometry, boxMaterial);
-                obstacleMesh.position.set(lane * laneWidth, 0.5, zPosition);
-                obstacleMesh.isBreakable = true; // Yeni özellik
-                breakableBoxes.push(obstacleMesh);
-            } else if (type < 0.7) { // Duvar (üzerinden zıplanabilir)
-                const wallGeometry = new THREE.BoxGeometry(2, 1.2, 0.5); // Zıplanabilir yükseklik
+                obstacleMesh.position.set(lane * LANE_WIDTH, 0.5, zPosition);
+                obstacleMesh.isBreakable = true; 
+                
+                // Kutuya "KUTU" yazısı ekle
+                const loader = new THREE.FontLoader();
+                loader.load( 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/fonts/helvetiker_regular.typeface.json', function ( font ) {
+                    const textGeometry = new THREE.TextGeometry( 'KUTU', {
+                        font: font,
+                        size: 0.4,
+                        height: 0.1,
+                        curveSegments: 2,
+                        bevelEnabled: false
+                    });
+                    const textMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 }); // Siyah yazı
+                    const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+                    textMesh.position.set(-0.4, 0.3, 0.51); // Kutunun önüne
+                    obstacleMesh.add(textMesh);
+                });
+
+
+            } else if (type < 0.7) { // Zıplanabilir Duvar
+                const wallGeometry = new THREE.BoxGeometry(2, 1.2, 0.5); 
                 const wallMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 }); 
                 obstacleMesh = new THREE.Mesh(wallGeometry, wallMaterial);
-                obstacleMesh.position.set(lane * laneWidth, 0.6, zPosition);
-                obstacleMesh.isJumpable = true; // Yeni özellik
-            } else { // Yüksek Engel (çarpışma)
+                obstacleMesh.position.set(lane * LANE_WIDTH, 0.6, zPosition);
+                obstacleMesh.isJumpable = true; 
+            } else { // Yüksek Engel
                 const tallObstacleGeometry = new THREE.BoxGeometry(1.5, 2.5, 0.8);
-                const tallObstacleMaterial = new THREE.MeshLambertMaterial({ color: 0xA0522D }); // Kırmızımsı kahverengi
+                const tallObstacleMaterial = new THREE.MeshLambertMaterial({ color: 0xA0522D }); 
                 obstacleMesh = new THREE.Mesh(tallObstacleGeometry, tallObstacleMaterial);
-                obstacleMesh.position.set(lane * laneWidth, 1.25, zPosition);
+                obstacleMesh.position.set(lane * LANE_WIDTH, 1.25, zPosition);
                 obstacleMesh.isJumpable = false;
             }
             scene.add(obstacleMesh);
@@ -461,7 +559,7 @@
         function createCoin(lane, zPosition) {
             const coin = new THREE.Mesh(coinGeometry, coinMaterial);
             coin.rotation.x = Math.PI / 2; 
-            coin.position.set(lane * laneWidth, 0.5, zPosition);
+            coin.position.set(lane * LANE_WIDTH, 0.5, zPosition);
             scene.add(coin);
             coinsArray.push(coin);
         }
@@ -544,7 +642,7 @@
             camera.position.z = player.position.z + 5; 
 
             // Oyuncunun şerit pozisyonunu güncelle ve dönüş animasyonu
-            const targetX = currentLane * laneWidth;
+            const targetX = currentLane * LANE_WIDTH;
             player.position.x += (targetX - player.position.x) * 0.1; 
             player.rotation.y += (playerRotationTarget - player.rotation.y) * laneChangeAnimationSpeed;
 
@@ -555,19 +653,21 @@
                 jumpVelocity += gravity; 
                 
                 // Zıplama animasyonu (daha belirgin ve doğal)
+                // Yere inişte yaylanma ve kalkışta esneme hissi
                 const jumpProgress = (player.position.y - 0.9) / (jumpForce * jumpForce / (2 * Math.abs(gravity)));
+                const jumpPhase = Math.sin(jumpProgress * Math.PI); // 0'dan 1'e, sonra 1'den 0'a
                 
-                // Ayaklar - havada bükülme ve toplanma
-                playerLeftFoot.rotation.x = Math.sin(jumpProgress * Math.PI) * Math.PI / 3; // Daha fazla bükülme
-                playerRightFoot.rotation.x = Math.sin(jumpProgress * Math.PI) * Math.PI / 3;
-                playerLeftFoot.position.y = -1.2 + Math.abs(Math.sin(jumpProgress * Math.PI)) * 0.7; // Daha yüksek kalkma
-                playerRightFoot.position.y = -1.2 + Math.abs(Math.sin(jumpProgress * Math.PI)) * 0.7;
-                playerLeftFoot.position.z = Math.sin(jumpProgress * Math.PI) * 0.2; // Hafif geri çekilme
-                playerRightFoot.position.z = Math.sin(jumpProgress * Math.PI) * 0.2;
+                // Ayaklar - havada bükülme ve toplanma (daha doğal)
+                playerLeftFoot.rotation.x = jumpPhase * Math.PI / 3; 
+                playerRightFoot.rotation.x = jumpPhase * Math.PI / 3;
+                playerLeftFoot.position.y = -1.2 + jumpPhase * 0.7; 
+                playerRightFoot.position.y = -1.2 + jumpPhase * 0.7;
+                playerLeftFoot.position.z = jumpPhase * 0.2; 
+                playerRightFoot.position.z = jumpPhase * 0.2;
 
                 // Kollar - zıplama hareketi (daha dinamik)
-                playerLeftArm.rotation.x = Math.PI / 3 - Math.sin(jumpProgress * Math.PI) * jumpAnimationArmSwing; // Daha yukarı kalkma
-                playerRightArm.rotation.x = -Math.PI / 3 + Math.sin(jumpProgress * Math.PI) * jumpAnimationArmSwing;
+                playerLeftArm.rotation.x = Math.PI / 3 * jumpPhase - jumpPhase * 0.6; 
+                playerRightArm.rotation.x = -Math.PI / 3 * jumpPhase + jumpPhase * 0.6;
 
 
                 if (player.position.y <= 0.9) { 
@@ -644,11 +744,12 @@
                 const zPos = player.position.z - 100; 
                 const side = Math.random() < 0.5 ? -1 : 1; 
 
-                // Kaldırım
-                const pavementGeometry = new THREE.BoxGeometry(laneWidth + 1, 0.1, 20); // Yolun yanına uzun kaldırım
-                const pavementMaterial = new THREE.MeshLambertMaterial({ color: 0xAAAAAA }); // Gri
+                // Kaldırım (yolun yanında)
+                const pavementWidth = LANE_WIDTH + 1;
+                const pavementGeometry = new THREE.BoxGeometry(pavementWidth, 0.1, 20); 
+                const pavementMaterial = new THREE.MeshLambertMaterial({ color: 0xAAAAAA }); 
                 const pavement = new THREE.Mesh(pavementGeometry, pavementMaterial);
-                pavement.position.set(side * (laneWidth + pavementGeometry.parameters.width / 2 - 0.5), 0.05, zPos);
+                pavement.position.set(side * (LANE_WIDTH * 1.5 + pavementWidth / 2 - 0.5), 0.05, zPos);
                 scene.add(pavement);
                 sceneryObjects.push(pavement);
 
@@ -658,12 +759,12 @@
                     const buildingHeight = Math.random() * 15 + 10;
                     const buildingDepth = Math.random() * 8 + 5;
                     const buildingColor = new THREE.Color(Math.random() * 0.5 + 0.3, Math.random() * 0.5 + 0.3, Math.random() * 0.5 + 0.3); 
-                    createBuilding(side * (laneWidth * 2 + buildingWidth / 2 + Math.random() * 5), zPos, buildingWidth, buildingHeight, buildingDepth, buildingColor);
+                    createBuilding(side * (LANE_WIDTH * 2 + buildingWidth / 2 + Math.random() * 5), zPos, buildingWidth, buildingHeight, buildingDepth, buildingColor);
                 }
 
                 // Çit, Ağaç veya Yol İşareti
                 const smallObjectChoice = Math.random();
-                const smallObjectX = side * (laneWidth * 1.5 + Math.random() * 3);
+                const smallObjectX = side * (LANE_WIDTH * 1.5 + Math.random() * 3);
                 const smallObjectZ = zPos + Math.random() * 10 - 5;
                 if (smallObjectChoice < 0.4) {
                     createFence(smallObjectX, smallObjectZ, 5, 1);
@@ -688,21 +789,16 @@
                 // Çarpışma Tespiti
                 if (checkCollision(player, obstacle)) {
                     if (obstacle.isBreakable) {
-                        // Kutu kırıldı, rastgele coin ver
-                        const earnedCoins = Math.floor(Math.random() * 5) + 1; // 1-5 arası
+                        const earnedCoins = Math.floor(Math.random() * 5) + 1; 
                         playerCoins += earnedCoins;
                         scoreDisplay.innerHTML = `Skor: ${Math.floor(score)}<br>Coin: ${playerCoins}`;
                         scene.remove(obstacle);
                         obstacles.splice(i, 1);
-                        // Kırılma animasyonu/efekti eklenebilir
-                        console.log(`Kutu kırıldı! ${earnedCoins} coin kazandın.`);
-                    } else if (obstacle.isJumpable && isJumping && player.position.y > obstacle.position.y + obstacle.geometry.parameters.height / 2 + 0.1) {
-                        // Zıplanabilir engelin üzerinden atladı
-                        // Hiçbir şey yapma, oyuna devam et
-                        console.log("Engelin üzerinden atladın!");
+                    } else if (obstacle.isJumpable && isJumping && player.position.y > obstacle.position.y + obstacle.geometry.parameters.height / 2 - 0.2) { // Zıplama yüksekliği kontrolü iyileştirildi
+                        // Üzerinden atladı
                     }
                     else {
-                        // Engel (yüksek olan veya zıplanamayan) ile çarpışma
+                        // Engel ile çarpışma (oyun biter)
                         console.log("Çarpıştın! Oyun Bitti!");
                         isGamePaused = true; 
                         shopButton.textContent = "Tekrar Oyna"; 
@@ -740,17 +836,7 @@
                     coinsArray.splice(i, 1);
                 }
             }
-
-            // Kırılabilir kutular (collision'dan sonra silindikleri için ekstra döngüye gerek yok, ama burada tutabiliriz)
-            for (let i = breakableBoxes.length - 1; i >= 0; i--) {
-                const box = breakableBoxes[i];
-                box.position.z += playerSpeed;
-                if (box.position.z > cleanupDistance) {
-                    scene.remove(box);
-                    breakableBoxes.splice(i, 1);
-                }
-            }
-
+            
             // Mahalle objeleri
             for (let i = sceneryObjects.length - 1; i >= 0; i--) {
                 const obj = sceneryObjects[i];
