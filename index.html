@@ -200,16 +200,17 @@
 
     <script type="module">
         // Three.js kütüphanelerini import et
-        // ÖNEMLİ: import ifadeleri bir fonksiyon bloğunun içinde olamaz, en üst seviyede olmalı.
+        // BU KISIM ÇOK ÖNEMLİ: import ifadeleri fonksiyon veya olay dinleyicisi içinde OLAMAZ!
+        // script type="module" kullanıldığında en üst seviyede olmalıdırlar.
         import * as THREE from 'https://unpkg.com/three@0.165.0/build/three.module.js';
         import { FontLoader } from 'https://unpkg.com/three@0.165.0/examples/jsm/loaders/FontLoader.js';
         import { TextGeometry } from 'https://unpkg.com/three@0.165.0/examples/jsm/geometries/TextGeometry.js';
 
-        console.log("THREE, FontLoader, TextGeometry import edildi.");
+        console.log("THREE, FontLoader, TextGeometry modülleri başarıyla import edildi.");
 
         // Tüm JavaScript kodunu DOMContentLoaded olayına sarmalayarak, HTML içeriğinin tamamen yüklendiğinden emin oluyoruz.
         document.addEventListener('DOMContentLoaded', () => {
-            console.log("DOMContentLoaded: HTML içeriği yüklendi, JavaScript kodu başlatılıyor.");
+            console.log("DOMContentLoaded: HTML içeriği yüklendi, oyun mantığı başlatılıyor.");
 
             try {
                 // --- UI Elemanlarına Erişim ---
@@ -225,9 +226,11 @@
                 const shopSections = document.querySelectorAll('.shop-section');
                 const speedBoostButton = document.getElementById('speed-boost-button');
 
-                if (!uiContainer || !scoreDisplay || !shopButton) {
-                    console.error("HATA: Temel UI elementlerinden biri bulunamadı. Lütfen HTML yapısını kontrol edin.");
-                    return; // Kodun daha fazla ilerlemesini engelle
+                // UI elementlerinin varlığını kontrol et
+                if (!uiContainer || !scoreDisplay || !shopButton || !shopDisplay || !closeShopButton) {
+                    console.error("HATA: Temel UI elementlerinden biri veya birkaçı HTML'de bulunamadı. Lütfen ID'leri kontrol edin.");
+                    alert("Kritik Hata: Oyun arayüzü yüklenemedi. Lütfen konsolu kontrol edin.");
+                    return; // Kritik UI elementi olmadan devam etme
                 }
                 console.log("UI elementleri başarıyla alındı.");
 
@@ -249,7 +252,7 @@
                     { id: 'speed_boost', name: 'Hızlandırma', description: '5 saniye boyunca %50 hız artışı.', price: 50, owned: 0, type: 'consumable' }
                 ];
 
-                let playerCoins = 500; // Test için başlangıçta coin verilebilir, örn: 500
+                let playerCoins = 500; // Başlangıçta test için yeterli coin verelim
                 let speedBoostCount = 0;
                 let isSpeedBoostActive = false;
                 let speedBoostTimer = 0;
@@ -392,17 +395,21 @@
                         console.error("Player body parts not initialized yet, cannot update outfit.");
                         return;
                     }
-                    switch (type) {
-                        case 'shirt':
-                            playerBody.material.color.set(color);
-                            break;
-                        case 'pants':
-                            playerPants.material.color.set(color);
-                            break;
-                        case 'shoes':
-                            playerLeftFoot.material.color.set(color);
-                            playerRightFoot.material.color.set(color);
-                            break;
+                    try {
+                        switch (type) {
+                            case 'shirt':
+                                playerBody.material.color.set(color);
+                                break;
+                            case 'pants':
+                                playerPants.material.color.set(color);
+                                break;
+                            case 'shoes':
+                                playerLeftFoot.material.color.set(color);
+                                playerRightFoot.material.color.set(color);
+                                break;
+                        }
+                    } catch (e) {
+                        console.error("Kıyafet güncellenirken hata oluştu:", e);
                     }
                 }
 
@@ -446,7 +453,8 @@
                     uiContainer.classList.remove('disabled-for-game');
                 });
 
-                // --- Sahne Ayarları ---
+                // --- Three.js Sahne Başlatma ---
+                console.log("Three.js sahne kurulumu başlatılıyor.");
                 const scene = new THREE.Scene();
                 scene.background = new THREE.Color(0x87CEEB);
 
@@ -457,7 +465,7 @@
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 document.body.appendChild(renderer.domElement);
 
-                console.log("Three.js sahne, kamera, renderer başlatıldı.");
+                console.log("Three.js sahne, kamera, renderer başarıyla başlatıldı.");
 
                 // --- Işıklandırma ---
                 const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -466,6 +474,7 @@
                 const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
                 directionalLight.position.set(0, 10, 5);
                 scene.add(directionalLight);
+                console.log("Işıklandırma eklendi.");
 
                 // --- Zemin Oluşturma (Yol) ---
                 const LANE_WIDTH = 3;
@@ -495,7 +504,6 @@
                 const line2 = new THREE.Line(lineGeometry2, dashedLineMaterial);
                 line2.computeLineDistances();
                 scene.add(line2);
-
                 console.log("Yol ve şeritler oluşturuldu.");
 
                 // --- Oyuncu (İnsan Figürü ve Kıyafetler) ---
@@ -533,7 +541,6 @@
 
                 player.position.set(0, 0.9, 0);
                 scene.add(player);
-
                 console.log("Oyuncu karakteri oluşturuldu.");
 
                 // --- Oyun Değişkenleri ---
@@ -582,6 +589,7 @@
                         console.error( 'Font yüklenirken hata oluştu:', err );
                     }
                 );
+                console.log("Font yüklemesi başlatıldı.");
 
                 // --- Mahalle Objeleri Oluşturma Fonksiyonları ---
                 function createBuilding(x, z, width, height, depth, color) {
@@ -720,7 +728,7 @@
                             textMesh.position.set(-textWidth / 2, 2.5 - textHeight / 2, 0.01);
                             signGroup.add(textMesh);
                         } catch (e) {
-                            console.error("Yazı objesi oluşturulurken hata:", e);
+                            console.error("Yol tabelası yazısı objesi oluşturulurken hata:", e);
                         }
                     } else {
                         console.warn("Font henüz yüklenmedi, yol tabelasına yazı eklenemedi.");
@@ -804,10 +812,28 @@
                         return;
                     }
                     keys[event.key.toLowerCase()] = true;
+                    // Tuşa basıldığında anında şerit değiştirme (tekrar basmaya gerek yok)
+                    if (event.key.toLowerCase() === 'a' || event.key.toLowerCase() === 'arrowleft') {
+                        currentLane = Math.max(currentLane - 1, -1);
+                        playerRotationTarget = Math.PI / 10;
+                    }
+                    if (event.key.toLowerCase() === 'd' || event.key.toLowerCase() === 'arrowright') {
+                        currentLane = Math.min(currentLane + 1, 1);
+                        playerRotationTarget = -Math.PI / 10;
+                    }
+                    if (event.key.toLowerCase() === ' ' && !isJumping) {
+                        isJumping = true;
+                        jumpVelocity = jumpForce;
+                    }
                 });
                 document.addEventListener('keyup', (event) => {
                     keys[event.key.toLowerCase()] = false;
+                    // Tuş bırakıldığında dönüşü sıfırla
+                    if (!keys['a'] && !keys['d'] && !keys['arrowleft'] && !keys['arrowright']) {
+                        playerRotationTarget = 0;
+                    }
                 });
+                console.log("Klavye olay dinleyicileri eklendi.");
 
                 // --- Dokunmatik Kontroller (Telefon İçin) ---
                 let touchStartX = 0;
@@ -849,6 +875,7 @@
                         }
                     }
                 }, false);
+                console.log("Dokunmatik olay dinleyicileri eklendi.");
 
                 // --- Animasyon Döngüsü ---
                 let lastFrameTime = performance.now();
@@ -951,34 +978,33 @@
                     }
 
                     // Klavye ile zıplama
-                    if (keys[' '] && !isJumping) {
-                        isJumping = true;
-                        jumpVelocity = jumpForce;
-                    }
+                    // Klavye dinleyicisi içinde halledildiği için burada tekrar kontrol etmeye gerek yok,
+                    // ancak yedek olarak kalabilir veya kaldırılabilir.
+                    // if (keys[' '] && !isJumping) {
+                    //     isJumping = true;
+                    //     jumpVelocity = jumpForce;
+                    // }
 
                     // Klavye ile yana kayma (A/D veya Sol/Sağ Ok)
-                    if (keys['a'] || keys['arrowleft']) {
-                        currentLane = Math.max(currentLane - 1, -1);
-                        playerRotationTarget = Math.PI / 10;
-                        keys['a'] = false;
-                        keys['arrowleft'] = false;
-                    }
-                    if (keys['d'] || keys['arrowright']) {
-                        currentLane = Math.min(currentLane + 1, 1);
-                        playerRotationTarget = -Math.PI / 10;
-                        keys['d'] = false;
-                        keys['arrowright'] = false;
-                    }
-                    if (!keys['a'] && !keys['d'] && !keys['arrowleft'] && !keys['arrowright'] && !isJumping) {
-                        playerRotationTarget = 0;
-                    }
+                    // Klavye dinleyicisi içinde halledildiği için burada tekrar kontrol etmeye gerek yok.
+                    // if (keys['a'] || keys['arrowleft']) {
+                    //     currentLane = Math.max(currentLane - 1, -1);
+                    //     playerRotationTarget = Math.PI / 10;
+                    // }
+                    // if (keys['d'] || keys['arrowright']) {
+                    //     currentLane = Math.min(currentLane + 1, 1);
+                    //     playerRotationTarget = -Math.PI / 10;
+                    // }
+                    // if (!keys['a'] && !keys['d'] && !keys['arrowleft'] && !keys['arrowright'] && !isJumping) {
+                    //     playerRotationTarget = 0;
+                    // }
 
 
                     // --- Engel, Coin, Kırılabilir Kutu ve Mahalle Objeleri Üretimi ---
                     if (player.position.z - lastSpawnZ < -Math.random() * (spawnDistanceMax - spawnDistanceMin) - spawnDistanceMin) {
                         const randomLane = Math.floor(Math.random() * 3) - 1;
                         const spawnChoice = Math.random();
-                        const spawnZ = player.position.z - (Math.random() * 50 + 30);
+                        const spawnZ = player.position.z - (Math.random() * 50 + 30); // Daha ileride spawnla
 
                         if (spawnChoice < 0.6) {
                             createObstacle(randomLane, spawnZ);
@@ -1037,10 +1063,10 @@
                                 isGamePaused = true;
                                 shopButton.textContent = "Tekrar Oyna";
                                 shopButton.onclick = () => {
-                                    location.reload();
+                                    location.reload(); // Sayfayı yeniden yükleyerek oyunu tekrar başlat
                                 };
-                                uiContainer.classList.add('disabled-for-game');
-                                return;
+                                uiContainer.classList.add('disabled-for-game'); // UI'yi devre dışı bırak
+                                return; // Animasyonu durdur
                             }
                         }
 
@@ -1060,7 +1086,7 @@
                             playerCoins += 1;
                             updateScoreAndCoinsDisplay();
                             scene.remove(coin);
-                            coin.visible = false;
+                            coin.visible = false; // objeyi kaldırdıktan sonra tekrar çarpışmaması için
                         }
 
                         if (coin.position.z > cleanupDistance) {
@@ -1089,20 +1115,22 @@
 
                 // Animasyon döngüsünü başlat
                 animate();
+                console.log("Oyun animasyon döngüsü başlatıldı.");
+
 
                 // --- Pencere Boyutu Değiştiğinde Yeniden Boyutlandırma ---
                 window.addEventListener('resize', () => {
                     camera.aspect = window.innerWidth / window.innerHeight;
                     camera.updateProjectionMatrix();
                     renderer.setSize(window.innerWidth, window.innerHeight);
+                    console.log("Pencere boyutu değişti, renderer güncellendi.");
                 });
 
-                console.log("Oyun başlatma sırası tamamlandı.");
+                console.log("Tüm oyun başlatma işlemleri tamamlandı.");
 
             } catch (e) {
-                console.error("Genel bir hata oluştu:", e);
-                // Kullanıcıya da bir mesaj gösterebiliriz
-                alert("Üzgünüz, bir hata oluştu ve oyun başlatılamadı: " + e.message + "\nLütfen konsolu kontrol edin.");
+                console.error("Ana DOMContentLoaded bloğunda kritik bir hata oluştu:", e);
+                alert("Üzgünüz, oyun başlatılırken beklenmedik bir hata oluştu: " + e.message + "\nLütfen tarayıcınızın konsolunu kontrol edin (F12).");
             }
         }); // DOMContentLoaded sonu
     </script>
